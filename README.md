@@ -20,7 +20,7 @@ This wrapper solves both problems by spawning `claude -p` (headless mode) with z
 npm install -g @anthropic-ai/claude-code
 ```
 
-### 2. Get z.ai API Key
+### 2.(OPTIONAL) Get z.ai API Key (or equivalent)
 Subscribe to [GLM Coding Plan](https://z.ai/subscribe) ($30/mo unlimited)
 
 ### 3. Set Environment Variable
@@ -37,7 +37,7 @@ python subagent_template.py --task "Fix the bug in auth.py" --cwd /path/to/proje
 
 | File | Description |
 |------|-------------|
-| `subagent_template.py` | **Use this** - Template with env vars (no hardcoded secrets) |
+| `subagent_template.py` | **Use this** - Template |
 | `README.md` | Documentation |
 | `LICENSE` | MIT License |
 
@@ -243,7 +243,3 @@ Install: `npm install -g @anthropic-ai/claude-code`
 ## License
 
 MIT
-
-## Credits
-
-Architecture inspired by [gruckion/nested-subagent](https://github.com/gruckion/nested-subagent).
