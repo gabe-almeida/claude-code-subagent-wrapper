@@ -2,6 +2,8 @@
 
 Use **non-Anthropic models** (GLM-4.7 via z.ai) as sub-agents in Claude Code, with the **exact same capabilities** as native Task tool sub-agents.
 
+**v2.2.0**: Now uses **inactivity-based timeout** (heartbeat pattern) — long tasks run indefinitely if active; stalled tasks are detected and killed quickly.
+
 ## Why?
 
 Claude Code's native Task tool spawns sub-agents, but:
@@ -55,14 +57,27 @@ python subagent_template.py --task "Implement feature X" --cwd /path/to/project 
 
 ### All Options
 ```
---task          Task description (required)
---cwd           Working directory (default: current)
---timeout       Timeout in seconds (default: 120)
---stream        Show tool names as they execute
---max-budget    Max cost in USD
---allowed-tools Comma-separated list of allowed tools
---debug         Write debug logs to /tmp/glm-subagent-debug.log
+--task               Task description (required)
+--cwd                Working directory (default: current)
+--inactivity-timeout Kill if no tool use for N seconds (default: 90)
+--max-timeout        Optional hard ceiling in seconds (default: unlimited)
+--stream             Show tool names as they execute
+--max-budget         Max cost in USD
+--allowed-tools      Comma-separated list of allowed tools
+--debug              Write debug logs to /tmp/glm-subagent-debug.log
 ```
+
+### Timeout Behavior (v2.2.0+)
+
+Uses **inactivity-based timeout** instead of global timeout:
+
+| Scenario | Behavior |
+|----------|----------|
+| Agent actively using tools | Timer resets on each tool use → runs indefinitely |
+| Agent stalls (no tool use) | Killed after `--inactivity-timeout` seconds |
+| Very long task | Use `--max-timeout` as safety ceiling |
+
+This follows the [heartbeat pattern](https://docs.temporal.io/encyclopedia/detecting-activity-failures) recommended by Temporal and AWS for agentic workflows.
 
 ## Output Format
 
@@ -194,6 +209,7 @@ Returns JSON: `{"success": bool, "result": "...", "error": null}`. Logs at `/tmp
 | Context isolation | ✅ | ✅ |
 | Progress UI | Native panel | Terminal output |
 | Truncation risk | None | None (fixed in v2.1) |
+| Timeout | Global only | Inactivity-based (v2.2) |
 
 ## Comparison: This vs MCP Approach
 
