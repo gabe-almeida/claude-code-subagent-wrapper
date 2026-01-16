@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # =============================================================================
 # Claude Code Sub-Agent Wrapper Template
-# Version: v2.1.1
+# Version: v2.2.0
 #
 # Use non-Anthropic models as sub-agents in Claude Code with ALL native tools.
 # This template uses environment variables - set your API key before use.
@@ -11,6 +11,12 @@
 #
 # Usage:
 #   python subagent_template.py --task "Your task" --cwd /path --stream
+#
+# Timeout Behavior (v2.2.0+):
+#   Uses INACTIVITY timeout, not global timeout. Timer resets on each tool use.
+#   - Long tasks run indefinitely as long as they're making progress
+#   - Stalled tasks (no tool use) are killed after inactivity timeout
+#   - Optional max-timeout as a safety ceiling
 # =============================================================================
 """
 Claude Code Sub-Agent Wrapper
@@ -23,6 +29,14 @@ Key features:
 - Token efficient: only tool names + result preview to stdout
 - No truncation: full stream saved to log files
 - Full debuggability: logs at /tmp/glm-native-subagent/
+- Smart timeout: Inactivity-based (resets on tool use), not global
+
+Timeout behavior (v2.2.0+):
+- Uses INACTIVITY timeout instead of global timeout
+- Timer resets every time the agent uses a tool (heartbeat pattern)
+- Long tasks run indefinitely as long as they're making progress
+- Stalled tasks are detected and killed quickly
+- Optional max-timeout provides a safety ceiling
 
 Environment variables (set before running):
 - ANTHROPIC_AUTH_TOKEN or ZAI_API_KEY (required) - Your API key
@@ -102,7 +116,8 @@ def run_subagent(
     task: str,
     working_dir: Optional[str] = None,
     allowed_tools: Optional[str] = None,
-    timeout: int = 600,
+    inactivity_timeout: int = 90,
+    max_timeout: Optional[int] = None,
     skip_permissions: bool = True,
     stream_progress: bool = False,
     max_budget_usd: Optional[float] = None,
@@ -115,7 +130,8 @@ def run_subagent(
         task: Task description
         working_dir: Working directory (default: current)
         allowed_tools: Comma-separated allowed tools
-        timeout: Timeout in seconds (default: 600)
+        inactivity_timeout: Kill if no tool use for this many seconds (default: 90)
+        max_timeout: Optional hard ceiling in seconds (default: None = unlimited)
         skip_permissions: Skip permission prompts (default: True)
         stream_progress: Show tool names as they execute
         max_budget_usd: Max cost ceiling
@@ -123,6 +139,11 @@ def run_subagent(
 
     Returns:
         Dict with: success, result, session_id, error, artifacts
+
+    Timeout behavior:
+        Uses inactivity-based timeout (heartbeat pattern). Timer resets each
+        time the agent uses a tool. Long tasks run indefinitely if active;
+        stalled tasks are detected and killed quickly.
     """
     env = _build_env()
     cwd = working_dir or os.getcwd()
@@ -190,6 +211,10 @@ Guidelines:
     stop_spinner = threading.Event()
     last_tool_name_printed = None
 
+    # Heartbeat tracking for inactivity timeout
+    last_activity_time = time.time()
+    activity_lock = threading.Lock()
+
     def spinner_loop():
         # Skip spinner if stdout is not a real terminal
         if not sys.stdout.isatty():
@@ -230,7 +255,7 @@ Guidelines:
         spinner_thread.start()
 
         def read_stdout():
-            nonlocal final_result_event, last_tool_name_printed
+            nonlocal final_result_event, last_tool_name_printed, last_activity_time
             assert proc.stdout is not None
             for line in proc.stdout:
                 # Write to log files (full fidelity)
@@ -255,6 +280,9 @@ Guidelines:
                         for block in event.get("message", {}).get("content", []):
                             if isinstance(block, dict) and block.get("type") == "tool_use":
                                 tool_name = block.get("name") or "tool"
+                                # HEARTBEAT: Reset inactivity timer on tool use
+                                with activity_lock:
+                                    last_activity_time = time.time()
                                 # Only print unique tool names (deduplication)
                                 if tool_name != last_tool_name_printed:
                                     last_tool_name_printed = tool_name
@@ -268,13 +296,26 @@ Guidelines:
         reader = threading.Thread(target=read_stdout, daemon=True)
         reader.start()
 
-        # Wait with timeout
+        # Wait with inactivity-based timeout (heartbeat pattern)
         start = time.time()
         while proc.poll() is None:
-            if (time.time() - start) > timeout:
+            current_time = time.time()
+
+            # Check inactivity timeout (resets on each tool use)
+            with activity_lock:
+                idle_time = current_time - last_activity_time
+
+            if idle_time > inactivity_timeout:
                 _kill_process_group(proc)
-                result["error"] = f"Timeout after {timeout}s"
+                result["error"] = f"Inactivity timeout: no tool use for {inactivity_timeout}s"
                 break
+
+            # Check max timeout ceiling (if set)
+            if max_timeout and (current_time - start) > max_timeout:
+                _kill_process_group(proc)
+                result["error"] = f"Max timeout ceiling reached: {max_timeout}s"
+                break
+
             time.sleep(0.1)
 
         # Capture stderr
@@ -371,7 +412,10 @@ def main():
     parser.add_argument("--task", required=True, help="Task description")
     parser.add_argument("--cwd", help="Working directory")
     parser.add_argument("--allowed-tools", help="Comma-separated allowed tools")
-    parser.add_argument("--timeout", type=int, default=120, help="Timeout seconds (default: 120)")
+    parser.add_argument("--inactivity-timeout", type=int, default=90,
+                        help="Kill if no tool use for N seconds (default: 90)")
+    parser.add_argument("--max-timeout", type=int, default=None,
+                        help="Optional hard ceiling in seconds (default: unlimited)")
     parser.add_argument("--require-permissions", action="store_true", help="Require permission prompts")
     parser.add_argument("--stream", action="store_true", help="Show tool names as they execute")
     parser.add_argument("--max-budget", type=float, help="Max cost USD")
@@ -382,7 +426,8 @@ def main():
         task=args.task,
         working_dir=args.cwd,
         allowed_tools=args.allowed_tools,
-        timeout=args.timeout,
+        inactivity_timeout=args.inactivity_timeout,
+        max_timeout=args.max_timeout,
         skip_permissions=not args.require_permissions,
         stream_progress=args.stream,
         max_budget_usd=args.max_budget,
