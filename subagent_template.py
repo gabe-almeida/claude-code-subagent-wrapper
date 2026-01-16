@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # =============================================================================
 # Claude Code Sub-Agent Wrapper Template
-# Version: v2.2.0
+# Version: v2.2.1
 #
 # Use non-Anthropic models as sub-agents in Claude Code with ALL native tools.
 # This template uses environment variables - set your API key before use.
@@ -62,6 +62,26 @@ DEFAULT_BASE_URL = "https://api.z.ai/api/anthropic"  # z.ai endpoint
 DEFAULT_API_TIMEOUT_MS = "300000"  # 5 min timeout
 SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
+# ANSI color codes for terminal output
+class Colors:
+    RESET = "\033[0m"
+    GRAY = "\033[90m"      # Muted gray for labels
+    WHITE = "\033[97m"     # Bright white for content
+    DIM = "\033[2m"        # Dim text
+    BOLD = "\033[1m"       # Bold
+
+
+def _supports_color() -> bool:
+    """Check if terminal supports ANSI colors."""
+    if not sys.stdout.isatty():
+        return False
+    # Check for common environment indicators
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("TERM") == "dumb":
+        return False
+    return True
+
 
 def _safe_truncate(s: str, n: int = 250) -> str:
     if not s:
@@ -120,6 +140,7 @@ def run_subagent(
     max_timeout: Optional[int] = None,
     skip_permissions: bool = True,
     stream_progress: bool = False,
+    show_prompt: bool = False,
     max_budget_usd: Optional[float] = None,
     debug: bool = False,
 ) -> Dict[str, Any]:
@@ -134,6 +155,7 @@ def run_subagent(
         max_timeout: Optional hard ceiling in seconds (default: None = unlimited)
         skip_permissions: Skip permission prompts (default: True)
         stream_progress: Show tool names as they execute
+        show_prompt: Display the full prompt before execution
         max_budget_usd: Max cost ceiling
         debug: Write debug logs
 
@@ -190,9 +212,24 @@ Guidelines:
         debug_log.write(f"\n{'='*80}\nrun_id={run_id}\ncwd={cwd}\ncmd={' '.join(cmd)}\n")
         debug_log.flush()
 
-    # Print header (small)
+    # Print header
+    use_color = _supports_color()
     print(f"[subagent] {run_id} starting cwd={cwd}", flush=True)
-    print(f"[subagent] task: {_safe_truncate(task, 120)}", flush=True)
+
+    if show_prompt:
+        # Show full prompt with colored label (like native Task tool UI)
+        if use_color:
+            print(f"{Colors.GRAY}└ Prompt:{Colors.RESET}", flush=True)
+            # Print each line of the task indented
+            for line in task.split('\n'):
+                print(f"    {line}", flush=True)
+        else:
+            print("└ Prompt:", flush=True)
+            for line in task.split('\n'):
+                print(f"    {line}", flush=True)
+        print("", flush=True)  # Empty line after prompt
+    else:
+        print(f"[subagent] task: {_safe_truncate(task, 120)}", flush=True)
 
     result: Dict[str, Any] = {
         "success": False,
@@ -418,6 +455,7 @@ def main():
                         help="Optional hard ceiling in seconds (default: unlimited)")
     parser.add_argument("--require-permissions", action="store_true", help="Require permission prompts")
     parser.add_argument("--stream", action="store_true", help="Show tool names as they execute")
+    parser.add_argument("--show-prompt", action="store_true", help="Display full prompt before execution")
     parser.add_argument("--max-budget", type=float, help="Max cost USD")
     parser.add_argument("--debug", action="store_true", help="Debug logs to /tmp/glm-subagent-debug.log")
     args = parser.parse_args()
@@ -430,6 +468,7 @@ def main():
         max_timeout=args.max_timeout,
         skip_permissions=not args.require_permissions,
         stream_progress=args.stream,
+        show_prompt=args.show_prompt,
         max_budget_usd=args.max_budget,
         debug=args.debug,
     )
