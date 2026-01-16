@@ -2,6 +2,8 @@
 
 Use **non-Anthropic models** (GLM-4.7 via z.ai) as sub-agents in Claude Code, with the **exact same capabilities** as native Task tool sub-agents.
 
+**v2.2.1**: Added `--show-prompt` flag to display full prompt before execution (like native Task tool UI).
+
 **v2.2.0**: Now uses **inactivity-based timeout** (heartbeat pattern) — long tasks run indefinitely if active; stalled tasks are detected and killed quickly.
 
 ## Why?
@@ -62,6 +64,7 @@ python subagent_template.py --task "Implement feature X" --cwd /path/to/project 
 --inactivity-timeout Kill if no tool use for N seconds (default: 90)
 --max-timeout        Optional hard ceiling in seconds (default: unlimited)
 --stream             Show tool names as they execute
+--show-prompt        Display full prompt before execution (like native Task UI)
 --max-budget         Max cost in USD
 --allowed-tools      Comma-separated list of allowed tools
 --debug              Write debug logs to /tmp/glm-subagent-debug.log
@@ -89,16 +92,33 @@ The wrapper returns clean JSON that your orchestrator can parse:
 
 ### With `--stream` flag, you'll see:
 ```
-[glm-subagent] a1b2c3d4e5 starting cwd=/path/to/project
-[glm-subagent] task: Implement feature X...
-[glm-subagent] a1b2c3d4e5 🔧 Glob
-[glm-subagent] a1b2c3d4e5 🔧 Read
-[glm-subagent] a1b2c3d4e5 🔧 Edit
-[glm-subagent] a1b2c3d4e5 ✅ complete
-[glm-subagent] a1b2c3d4e5 ✅ success
-[glm-subagent] result: Implemented feature X by...
-[glm-subagent] logs: /tmp/glm-native-subagent/run_a1b2c3d4e5.stream.jsonl
+[subagent] a1b2c3d4e5 starting cwd=/path/to/project
+[subagent] task: Implement feature X...
+[subagent] a1b2c3d4e5 🔧 Glob
+[subagent] a1b2c3d4e5 🔧 Read
+[subagent] a1b2c3d4e5 🔧 Edit
+[subagent] a1b2c3d4e5 ✅ complete
+[subagent] a1b2c3d4e5 ✅ success
+[subagent] result: Implemented feature X by...
+[subagent] logs: /tmp/glm-native-subagent/run_a1b2c3d4e5.stream.jsonl
 {"success": true, "result": "Implemented feature X by...", "error": null}
+```
+
+### With `--show-prompt` flag (like native Task tool UI):
+```
+[subagent] a1b2c3d4e5 starting cwd=/path/to/project
+└ Prompt:                              ← Gray colored label
+    TASK: Update roleProvisioning.service.ts
+
+    You need to update the role provisioning configuration
+    so that Sales Managers automatically get proper permissions.
+
+    File Location:
+    /Users/Gabe/Dev/project/src/services/roleProvisioning.service.ts
+
+[subagent] a1b2c3d4e5 🔧 Read
+[subagent] a1b2c3d4e5 🔧 Edit
+...
 ```
 
 ## Architecture
