@@ -1,6 +1,6 @@
 # Claude Code Sub-Agent Wrapper
 
-Use **non-Anthropic models** (GLM-4.7 via z.ai) as sub-agents in Claude Code, with the **exact same capabilities** as native Task tool sub-agents.
+Use **non-Anthropic models** (GLM-5 via z.ai) as sub-agents in Claude Code, with the **exact same capabilities** as native Task tool sub-agents.
 
 **v2.2.1**: Added `--show-prompt` flag to display full prompt before execution (like native Task tool UI).
 
@@ -10,11 +10,11 @@ Use **non-Anthropic models** (GLM-4.7 via z.ai) as sub-agents in Claude Code, wi
 
 Claude Code's native Task tool spawns sub-agents, but:
 - Sub-agents are **Anthropic models only** (expensive per-token pricing)
-- No way to use cheaper alternatives like GLM-4.7
+- No way to use cheaper alternatives like GLM-5
 
 This wrapper solves both problems by spawning `claude -p` (headless mode) with z.ai environment variables, giving you:
 - **ALL native Claude Code tools** (Read, Write, Edit, Glob, Grep, Bash, WebFetch, etc.)
-- **GLM-4.7** as the model ($30/mo unlimited via z.ai)
+- **GLM-5** as the model ($30/mo unlimited via z.ai)
 - **Same behavior** as native sub-agents
 
 ## Quick Start
@@ -146,7 +146,7 @@ The wrapper returns clean JSON that your orchestrator can parse:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Claude Code CLI (GLM-4.7 via z.ai)                             │
+│  Claude Code CLI (GLM-5 via z.ai)                             │
 │                                                                 │
 │  - Fresh 200k token context window                              │
 │  - ALL native tools available                                   │
@@ -223,7 +223,7 @@ Returns JSON: `{"success": bool, "result": "...", "error": null}`. Logs at `/tmp
 
 | Feature | Native Task Tool | This Wrapper |
 |---------|-----------------|--------------|
-| Model | Anthropic only | Any (GLM-4.7 via z.ai) |
+| Model | Anthropic only | Any (GLM-5 via z.ai) |
 | Cost | Per-token ($$$) | Flat rate ($30/mo) |
 | Tools | All native | All native |
 | Context isolation | ✅ | ✅ |
@@ -272,9 +272,9 @@ Install: `npm install -g @anthropic-ai/claude-code`
 
 | Requested | Actual |
 |-----------|--------|
-| claude-opus | GLM-4.7 |
-| claude-sonnet | GLM-4.7 |
-| claude-haiku | GLM-4.5-Air |
+| claude-opus | GLM-5 |
+| claude-sonnet | GLM-5 |
+| claude-haiku | GLM-5-Air |
 
 ## License
 
